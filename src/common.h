@@ -377,6 +377,12 @@ GLOBAL bool delay_directory_restore_option;
 /* Warn about implicit use of the wildcards in command line arguments.
    (Default for tar prior to 1.15.91, but changed afterwards */
 GLOBAL bool warn_regex_usage;
+
+/* Use a third-party filter (ie. to deduplicate files). filer_options contains
+ */
+GLOBAL const char * dedup_filter_command_option;
+
+
 
 /* Declarations for each module.  */
 
@@ -486,6 +492,9 @@ bool time_to_chars (time_t t, char *buf, size_t size);
 bool uid_to_chars (uid_t uid, char *buf, size_t size);
 bool uintmax_to_chars (uintmax_t v, char *buf, size_t size);
 void string_to_chars (char const *s, char *buf, size_t size);
+
+GLOBAL int dedup_filter_query_pipe[2];
+GLOBAL int dedup_filter_response_pipe[2];
 
 /* Module diffarch.c.  */
 
@@ -764,6 +773,7 @@ int sys_exec_info_script (const char **archive_name, int volume_number);
 void sys_exec_checkpoint_script (const char *script_name,
 				 const char *archive_name,
 				 int checkpoint_number);
+pid_t sys_start_dedup_filter_child(void);
 
 /* Module compare.c */
 void report_difference (struct tar_stat_info *st, const char *message, ...);

@@ -1568,7 +1568,7 @@ dump_file0 (struct tar_stat_info *st, const char *p,
 
   is_dir = S_ISDIR (st->stat.st_mode) != 0;
 
-  if (!is_dir && dump_hard_link (st))
+  if (!is_dir && (dump_hard_link (st) || dump_hard_link_from_dedup_filter (st)))
     return;
 
   if (is_dir || S_ISREG (st->stat.st_mode) || S_ISCTG (st->stat.st_mode))
@@ -1788,4 +1788,73 @@ dump_file (const char *p, bool top_level, dev_t parent_device)
   if (listed_incremental_option)
     update_parent_directory (p);
   tar_stat_destroy (&st);
+}
+
+static void read_filename(int fp, size_t length, char * buffer)
+{
+  char *pos = buffer;
+  char c;
+
+  buffer[length - 1] = '\0';
+
+  for(;;)
+  {
+
+    if (--length < 1)
+      return;
+
+    if (safe_read(fp, &c, 1) != 1)
+      c = '\0';
+
+    *pos++ = c;
+
+    if (c == '\0')
+      return;
+  }
+}
+
+static pid_t dedup_filter_pid = -1;
+
+static bool
+dump_hard_link_from_dedup_filter(struct tar_stat_info *st)
+{
+  struct link lp;
+  struct link *duplicate;
+  off_t block_ordinal;
+  union block *blk;
+  char response ;
+
+  if (dedup_filter_command_option == NULL)
+    return false;
+
+  if (dedup_filter_pid == -1)
+  {
+    dedup_filter_pid = sys_start_filter_child();
+    if (dedup_filter_pid == -1)
+      return false;
+  }
+
+  // send file name to pipe (including trailing nul)
+  write(dedup_filter_query_pipe[1], st->orig_file_name,
+          strlen(st->orig_file_name) + 1);
+
+  // read back 1 byte response
+  safe_read(dedup_filter_response_pipe[0], &response, 1);
+
+  if (response == 1)
+  {
+    // response is 1 - hard link to other file
+
+    char duplicate_name[256] = {0};
+    read_filename(dedup_filter_response_pipe[0], 255, duplicate_name);
+
+    return do_dump_hard_link(st, duplicate_name);
+  }
+  else if (response == 2)
+  {
+    // response is 2 - skip file
+    return true;
+  }
+
+  return false;
 }

@@ -862,4 +862,40 @@ sys_exec_checkpoint_script (const char *script_name,
   exec_fatal (script_name);
 }
 
+pid_t
+sys_start_dedup_filter_child(void)
+{
+   pid_t cpid;
+
+   if (dedup_filter_command_option == NULL)
+    return -1;
+
+   xpipe(dedup_filter_query_pipe);
+   xpipe(dedup_filter_response_pipe);
+
+   cpid = xfork();
+   if (cpid > 0)
+     {
+       // parent tar
+       // we write to query pipe, read from response pipe
+       // so close the other fds
+       xclose(dedup_filter_query_pipe[PREAD]);
+       xclose(dedup_filter_response_pipe[PWRITE]);
+       return cpid;
+     }
+
+   // child (filter) reads from query and writes to response
+   // so close the rest
+   xclose(dedup_filter_query_pipe[PWRITE]);
+   xclose(dedup_filter_response_pipe[PREAD]);
+
+   xdup2(dedup_filter_query_pipe[PREAD], STDIN_FILENO);
+   xdup2(dedup_filter_response_pipe[PWRITE], STDOUT_FILENO);
+
+   program_name = _("tar (child)");
+
+   execlp(dedup_filter_command_option, NULL);
+
+}
+
 #endif /* not MSDOS */

@@ -338,7 +338,8 @@ enum
   VOLNO_FILE_OPTION,
   WARNING_OPTION, 
   WILDCARDS_MATCH_SLASH_OPTION,
-  WILDCARDS_OPTION
+  WILDCARDS_OPTION,
+  DEDUP_FILTER_OPTION,
 };
 
 const char *argp_program_version = "tar (" PACKAGE_NAME ") " VERSION;
@@ -788,7 +789,12 @@ static struct argp_option options[] = {
 
   {"restrict", RESTRICT_OPTION, 0, 0,
    N_("disable use of some potentially harmful options"), -1 },
+
+  {"dedup-filter", DEDUP_FILTER_OPTION, N_("PROG"), 0,
+   N_("filter through de-duplication PROG"), GRID+1 },
 #undef GRID
+
+
 
   {0, 0, 0, 0, 0, 0}
 };
@@ -2133,6 +2139,11 @@ parse_opt (int key, char *arg, struct argp_state *state)
 		  _("Options `-[0-7][lmh]' not supported by *this* tar"));
 
 #endif /* not DEVICE_PREFIX */
+
+    case DEDUP_FILTER_OPTION:
+      dedup_filter_command_option = arg;
+      break;
+
 
     default:
       return ARGP_ERR_UNKNOWN;
