@@ -1370,6 +1370,39 @@ unknown_file_error (char const *p)
 
 /* Handling of hard links */
 
+
+
+static bool
+do_dump_hard_link(struct tar_stat_info *st, char * duplicate_name)
+{
+  off_t block_ordinal;
+  union block *blk;
+
+  char const *link_name = safer_name_suffix (duplicate_name, true,
+	                                         absolute_names_option);
+
+
+  block_ordinal = current_block_ordinal ();
+  assign_string (&st->link_name, link_name);
+  if (NAME_FIELD_SIZE - (archive_format == OLDGNU_FORMAT)
+	  < strlen (link_name))
+    write_long_link (st);
+
+  st->stat.st_size = 0;
+  blk = start_header (st);
+  if (!blk)
+    return false;
+  tar_copy_str (blk->header.linkname, link_name, NAME_FIELD_SIZE);
+
+  blk->header.typeflag = LNKTYPE;
+  finish_header (st, blk, block_ordinal);
+
+  if (remove_files_option)
+    queue_deferred_unlink (st->orig_file_name, false);
+
+  return true;
+}
+
 /* Table of all non-directories that we've written so far.  Any time
    we see another, we check the table and avoid dumping the data
    again if we've done it once already.  */
@@ -1393,31 +1426,8 @@ dump_hard_link (struct tar_stat_info *st)
       if ((duplicate = hash_lookup (link_table, &lp)))
 	{
 	  /* We found a link.  */
-	  char const *link_name = safer_name_suffix (duplicate->name, true,
-	                                             absolute_names_option);
-
 	  duplicate->nlink--;
-
-	  block_ordinal = current_block_ordinal ();
-	  assign_string (&st->link_name, link_name);
-	  if (NAME_FIELD_SIZE - (archive_format == OLDGNU_FORMAT)
-	      < strlen (link_name))
-	    write_long_link (st);
-
-	  st->stat.st_size = 0;
-	  blk = start_header (st);
-	  if (!blk)
-	    return false;
-	  tar_copy_str (blk->header.linkname, link_name, NAME_FIELD_SIZE);
-
-	  blk->header.typeflag = LNKTYPE;
-	  finish_header (st, blk, block_ordinal);
-
-	  if (remove_files_option)
-	    queue_deferred_unlink (st->orig_file_name, false);
-
-	  return true;
-	}
+      return do_dump_hard_link(st, duplicate->name);
     }
   return false;
 }
